@@ -1,18 +1,25 @@
-from elasticsearch import Elasticsearch
 import json
+import os
+from elasticsearch import Elasticsearch
+from dotenv import load_dotenv
 
-ELASTIC_CLOUD_ID = "Node_Usage:YXAtc291dGgtMS5hd3MuZWxhc3RpYy1jbG91ZC5jb206NDQzJDZiMjA1NzYyMmUzNDQxZjQ5NzI0NWQ4MTJmMTJmNThmJDZhMjI1YWFhOTQxMjQ3NzNhZWVlYWY1MWU3OWM0YTg5"
-USERNAME = "elastic"
-PASSWORD = "Wd5zQA1JUj2Qgk4dANVRYL6o"
+load_dotenv()
+
+ELASTIC_CLOUD_ID = os.getenv("ELASTIC_CLOUD_ID")
+USERNAME = os.getenv("ELASTIC_USERNAME")
+PASSWORD = os.getenv("ELASTIC_PASSWORD")
 
 es = Elasticsearch(
     cloud_id=ELASTIC_CLOUD_ID,
     basic_auth=(USERNAME, PASSWORD)
 )
 
-with open("logs.json") as f:
-    for line in f:
-        doc = json.loads(line)
-        es.index(index="incident-logs", document=doc)
+INDEX_NAME = "security-events"
 
-print("Logs ingested successfully")
+with open("security_logs.json", "r") as f:
+    logs = json.load(f)
+
+for log in logs:
+    es.index(index=INDEX_NAME, document=log)
+
+print(f"✅ Successfully ingested {len(logs)} security events into Elasticsearch!")
