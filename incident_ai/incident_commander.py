@@ -1,8 +1,9 @@
 import os
+from dotenv import load_dotenv
+load_dotenv()
 from elasticsearch import Elasticsearch
 import json
 from datetime import datetime
-from openai import OpenAI
 
 # ========================
 # CONFIGURATION
@@ -12,10 +13,7 @@ ELASTIC_CLOUD_ID = os.getenv("ELASTIC_CLOUD_ID")
 USERNAME = os.getenv("ELASTIC_USERNAME", "elastic")
 PASSWORD = os.getenv("ELASTIC_PASSWORD")
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-if not ELASTIC_CLOUD_ID or not PASSWORD or not OPENAI_API_KEY:
-    raise ValueError("Missing required environment variables. Please set ELASTIC_CLOUD_ID, ELASTIC_PASSWORD, and OPENAI_API_KEY.")
 
 # ========================
 # CONNECT ELASTIC
@@ -26,11 +24,6 @@ es = Elasticsearch(
     basic_auth=(USERNAME, PASSWORD)
 )
 
-# ========================
-# CONNECT OPENAI
-# ========================
-
-client = OpenAI(api_key=OPENAI_API_KEY)
 
 # ========================
 # TOOL 1: Detect Failing Service
