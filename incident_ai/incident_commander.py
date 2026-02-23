@@ -3,7 +3,8 @@ from dotenv import load_dotenv
 load_dotenv()
 from elasticsearch import Elasticsearch
 import json
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+from backend.mitre_mapper import map_to_mitre 
 
 # ========================
 # CONFIGURATION
@@ -26,144 +27,166 @@ es = Elasticsearch(
 
 
 # ========================
-# TOOL 1: Detect Failing Service
+# TOOL 1: Detect High-Risk Security Events
 # ========================
 
-def detect_failing_service():
+def detect_security_threat():
     query = {
         "query": {
-            "term": {"log_level": "ERROR"}
-        },
-        "aggs": {
-            "services": {
-                "terms": {
-                    "field": "service_name"
-                }
+            "range": {
+                "risk_score": {"gte": 70}
             }
         },
-        "size": 0
+        "sort": [{"@timestamp": {"order": "desc"}}],
+        "size": 1
     }
 
-    response = es.search(index="incident-logs", body=query)
-    buckets = response["aggregations"]["services"]["buckets"]
+    response = es.search(index="security-logs", body=query)
+    hits = response["hits"]["hits"]
 
-    if not buckets:
-        return None, 0
-
-    service_name = buckets[0]["key"]
-    error_count = buckets[0]["doc_count"]
-
-    return service_name, error_count
-
-# ========================
-# TOOL 2: Detect Root Cause
-# ========================
-
-def detect_root_cause():
-    query = {
-        "query": {
-            "term": {"log_level": "ERROR"}
-        },
-        "aggs": {
-            "error_codes": {
-                "terms": {
-                    "field": "error_code"
-                }
-            }
-        },
-        "size": 0
-    }
-
-    response = es.search(index="incident-logs", body=query)
-    buckets = response["aggregations"]["error_codes"]["buckets"]
-
-    if not buckets:
+    if not hits:
         return None
 
-    return buckets[0]["key"]
+    return hits[0]["_source"]
+
 
 # ========================
-# TOOL 3: Generate AI Report
+# TOOL 2: Generate AI Analysis (Placeholder)
 # ========================
 
-def generate_incident_report(service, error_count, root_cause):
+def generate_ai_analysis(threat):
+    return {
+        "summary": f"Detected high-risk activity of type {threat.get('threat_type')}.",
+        "impact": "Potential unauthorized access or malicious behavior detected.",
+        "remediation": [
+            "Investigate the source IP and user account.",
+            "Review authentication logs.",
+            "Apply least privilege enforcement.",
+            "Reset compromised credentials if necessary."
+        ],
+        "severity": "Critical" if threat.get("risk_score", 0) >= 90 else "High"
+    }
 
-    report = f"""
-INCIDENT REPORT
-===============
 
-SUMMARY:
-- Failing Service: {service}
-- Total Error Count: {error_count}
-- Primary Error Pattern: {root_cause}
+def is_duplicate_incident(source_ip, threat_type):
+    ten_minutes_ago = datetime.now(timezone.utc) - timedelta(minutes=10)
 
-PROBABLE ROOT CAUSE:
-Based on the error pattern '{root_cause}', this appears to be:
-- Database connectivity issues (DB_CONN_FAIL)
-- Connection pool exhaustion
-- Network timeouts affecting database operations
+    query = {
+        "query": {
+            "bool": {
+                "must": [
+                    {"match": {"source_ip": source_ip}},
+                    {"match": {"threat_type": threat_type}},
+                    {
+                        "range": {
+                            "@timestamp": {
+                                "gte": ten_minutes_ago.isoformat()
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    }
 
-IMPACT:
-- Service degradation for {service}
-- Potential transaction failures
-- User experience impact
+    response = es.search(index="incidents", body=query)
+    return response["hits"]["total"]["value"] > 0
 
-RECOMMENDED ACTIONS:
-1. Immediate: Check database connection pool settings
-2. Monitor: Database server performance metrics
-3. Scale: Consider increasing connection pool size
-4. Alert: Set up monitoring for connection pool usage
-5. Backup: Verify database failover procedures
+def count_recent_occurrences(source_ip, threat_type):
+    thirty_minutes_ago = datetime.now(timezone.utc) - timedelta(minutes=30)
 
-SEVERITY: HIGH
-STATUS: INVESTIGATING
-"""
+    query = {
+        "query": {
+            "bool": {
+                "must": [
+                    {"match": {"source_ip": source_ip}},
+                    {"match": {"threat_type": threat_type}},
+                    {
+                        "range": {
+                            "@timestamp": {
+                                "gte": thirty_minutes_ago.isoformat()
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    }
 
-    return report
+    response = es.search(index="incidents", body=query)
+    return response["hits"]["total"]["value"]
+
 
 # ========================
-# MAIN ORCHESTRATOR
+# MAIN ORCHESTRATOR (SOC MODE)
 # ========================
 
 def run_incident_commander():
 
-    print("🚨 Running Incident Commander AI...\n")
+    print("🚨 Running SOC Threat Detection...\n")
 
-    service, error_count = detect_failing_service()
+    threat = detect_security_threat()
 
-    if not service:
+    if not threat:
         return {"status": "NO_INCIDENT"}
 
-    root_cause = detect_root_cause()
+    risk_score = threat.get("risk_score", 0)
 
-    # Severity Logic
-    if error_count > 100:
+    if risk_score >= 90:
+        severity = "CRITICAL"
+    elif risk_score >= 70:
         severity = "HIGH"
-    elif error_count > 50:
-        severity = "MEDIUM"
     else:
-        severity = "LOW"
+        severity = "MEDIUM"
 
-    report = generate_incident_report(service, error_count, root_cause)
+    ai_analysis = generate_ai_analysis(threat)
+    mitre_info = map_to_mitre(threat.get("threat_type"))
+
+    if not mitre_info:
+        from backend.mitre_mapper import ai_mitre_fallback
+        mitre_info = ai_mitre_fallback(threat.get("threat_type"))
+
+    source_ip = threat.get("source_ip")
+    threat_type = threat.get("threat_type")
+
+    if is_duplicate_incident(source_ip, threat_type):
+        return {
+            "status": "DUPLICATE_SKIPPED",
+            "message": "Incident already exists within last 10 minutes."
+        }
+
+    occurrence_count = count_recent_occurrences(source_ip, threat_type) + 1
+
+    repeat_offender = False
+
+    if occurrence_count >= 3:
+        repeat_offender = True
+        severity = "CRITICAL"
 
     incident_data = {
         "status": "INCIDENT_FOUND",
-        "service": service,
-        "error_count": error_count,
-        "root_cause": root_cause,
+        "incident_stage": "OPEN",
+        "threat_type": threat.get("threat_type"),
+        "source_ip": threat.get("source_ip"),
+        "user": threat.get("user"),
+        "risk_score": risk_score,
         "severity": severity,
-        "report": report
+        "repeat_offender": repeat_offender,
+        "occurrence_count": occurrence_count,
+        "ai_analysis": ai_analysis,
+        "mitre": mitre_info
     }
 
     save_incident(incident_data)
     return incident_data
+
 
 # ========================
 # SAVE INCIDENT TO ELASTIC
 # ========================
 
 def save_incident(incident_data):
-    incident_data["@timestamp"] = datetime.utcnow().isoformat()
+    incident_data["@timestamp"] = datetime.now(timezone.utc).isoformat()
 
     es.index(
         index="incidents",
