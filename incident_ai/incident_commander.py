@@ -5,6 +5,7 @@ from elasticsearch import Elasticsearch
 import json
 from datetime import datetime, timezone, timedelta
 from backend.mitre_mapper import map_to_mitre 
+from elasticsearch import NotFoundError
 
 # ========================
 # CONFIGURATION
@@ -89,8 +90,12 @@ def is_duplicate_incident(source_ip, threat_type):
         }
     }
 
-    response = es.search(index="incidents", body=query)
-    return response["hits"]["total"]["value"] > 0
+    try:
+        response = es.search(index="incidents", body=query)
+        return response["hits"]["total"]["value"] > 0
+    except NotFoundError:
+        # If incidents index does not exist yet, no duplicate
+        return False
 
 def count_recent_occurrences(source_ip, threat_type):
     thirty_minutes_ago = datetime.now(timezone.utc) - timedelta(minutes=30)
@@ -113,8 +118,12 @@ def count_recent_occurrences(source_ip, threat_type):
         }
     }
 
-    response = es.search(index="incidents", body=query)
-    return response["hits"]["total"]["value"]
+    try:
+        response = es.search(index="incidents", body=query)
+        return response["hits"]["total"]["value"]
+    except NotFoundError:
+        # If incidents index does not exist yet, no previous occurrences
+        return 0
 
 
 # ========================
@@ -163,9 +172,20 @@ def run_incident_commander():
         repeat_offender = True
         severity = "CRITICAL"
 
+    current_time = datetime.now(timezone.utc).isoformat()
+
     incident_data = {
         "status": "INCIDENT_FOUND",
         "incident_stage": "OPEN",
+        "created_at": current_time,
+        "updated_at": current_time,
+        "history": [
+            {
+                "stage": "OPEN",
+                "timestamp": current_time,
+                "notes": "Incident automatically created by SOC Orchestrator."
+            }
+        ],
         "threat_type": threat.get("threat_type"),
         "source_ip": threat.get("source_ip"),
         "user": threat.get("user"),
@@ -186,7 +206,15 @@ def run_incident_commander():
 # ========================
 
 def save_incident(incident_data):
-    incident_data["@timestamp"] = datetime.now(timezone.utc).isoformat()
+    # Preserve created_at if exists, otherwise initialize
+    if "created_at" not in incident_data:
+        incident_data["created_at"] = datetime.now(timezone.utc).isoformat()
+
+    # Always update updated_at
+    incident_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+    # Elasticsearch primary timestamp
+    incident_data["@timestamp"] = incident_data["updated_at"]
 
     es.index(
         index="incidents",
