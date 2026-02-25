@@ -8,7 +8,14 @@ def get_all_incidents(es):
             sort="@timestamp:desc"
         )
         hits = response["hits"]["hits"]
-        return [hit["_source"] for hit in hits]
+
+        incidents = []
+        for hit in hits:
+            incident = hit["_source"]
+            incident["_id"] = hit["_id"]  # Attach Elasticsearch document ID
+            incidents.append(incident)
+
+        return incidents
     except NotFoundError:
         # If index doesn't exist yet, return empty list instead of crashing
         return []
