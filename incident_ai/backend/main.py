@@ -3,14 +3,26 @@ from dotenv import load_dotenv
 import os
 from elasticsearch import Elasticsearch
 
-from .incident_service import get_all_incidents, get_metrics
+from incident_service import get_all_incidents, get_metrics
 from elasticsearch import NotFoundError
 from fastapi import HTTPException
 from incident_commander import run_incident_commander
+from fastapi.middleware.cors import CORSMiddleware
+from ai_reasoner import generate_deep_investigation, generate_closure_report
 
 load_dotenv()
 
 app = FastAPI(title="Incident AI Backend")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 ELASTIC_CLOUD_ID = os.getenv("ELASTIC_CLOUD_ID")
 ELASTIC_USERNAME = os.getenv("ELASTIC_USERNAME", "elastic")
@@ -77,15 +89,51 @@ def update_incident_stage(incident_id: str, payload: dict):
         incident["incident_stage"] = new_stage
         incident["updated_at"] = current_time
 
+        # Deep Investigation Logic
+        generated_object = None
+        if new_stage == "INVESTIGATING" and current_stage != "INVESTIGATING":
+            # Only generate deep investigation if it doesn't already exist
+            if "deep_investigation" not in incident:
+                try:
+                    generated_object = generate_deep_investigation(incident)
+                    generated_object["generated_at"] = current_time
+                except Exception as e:
+                    print(f"Error during deep investigation: {e}")
+
+        # Closure Report Logic
+        closure_report = None
+        if new_stage == "RESOLVED" and current_stage != "RESOLVED":
+            if "closure_report" not in incident:
+                try:
+                    closure_report = generate_closure_report(incident)
+                    if "generated_at" not in closure_report:
+                        closure_report["generated_at"] = current_time
+                except Exception as e:
+                    print(f"Error during closure report generation: {e}")
+
         # Append history
-        incident.setdefault("history", []).append({
+        updated_history = incident.get("history", [])
+        updated_history.append({
             "stage": new_stage,
             "timestamp": current_time,
             "notes": notes
         })
 
-        # Save back to Elasticsearch
-        es.index(index="incidents", id=incident_id, document=incident)
+        # Explicit partial update payload
+        update_doc = {
+            "incident_stage": new_stage,
+            "updated_at": current_time,
+            "history": updated_history
+        }
+        
+        if generated_object:
+            update_doc["deep_investigation"] = generated_object
+            
+        if closure_report:
+            update_doc["closure_report"] = closure_report
+
+        # Save back to Elasticsearch using atomic update
+        es.update(index="incidents", id=incident_id, doc=update_doc)
 
         return {"message": "Incident stage updated successfully."}
 
