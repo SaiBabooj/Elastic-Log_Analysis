@@ -25,12 +25,12 @@ def get_metrics(es):
         total = es.count(index="incidents")["count"]
 
         high_query = {
-            "query": {"term": {"severity": "HIGH"}}
+            "query": {"match": {"severity": "HIGH"}}
         }
         high = es.count(index="incidents", body=high_query)["count"]
 
         critical_query = {
-            "query": {"term": {"severity": "CRITICAL"}}
+            "query": {"match": {"severity": "CRITICAL"}}
         }
         critical = es.count(index="incidents", body=critical_query)["count"]
 
