@@ -96,19 +96,19 @@ Point your browser to `http://localhost:5173`.
 
 ## 📸 Screenshots
 
-**photo 1 - Frontend Illustration :**
+**Frontend Illustration :**
 ![Frontend Illustration](./screenshots/frontend.png)
 
-**photo 2 - Fast_Api Interface :**
+**Fast_Api Interface :**
 ![Fast_Api Interface](./screenshots/fastapi.png)
 
-**photo 3 - Ngrok :**
+**Ngrok :**
 ![Ngrok](./screenshots/ngrok.png)
 
-**photo 4 - logs in Json formate :**
+**logs in Json formate :**
 ![Logs in JSON Format](./screenshots/logs.png)
 
-**photo 5 - Our Prediction model :**
+**Our Prediction model :**
 ![Prediction Model](./screenshots/prediction.png)
 
 ## 🔐 Security Constraints Adopted
