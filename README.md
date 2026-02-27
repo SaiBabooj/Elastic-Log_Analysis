@@ -115,3 +115,6 @@ Point your browser to `http://localhost:5173`.
 - No destructive operations (`es.index`) exist within the API layer. Updates utilize atomic `es.update` patches to preserve audit trails.
 - All AI inferences fail gracefully and write back localized error schemas.
 - Escalation policies rely strictly on static threshold bounds verified directly by Elasticsearch aggregations.
+
+> **Note on Deployment & Local Usage:**
+> The live deployed version of this web application may not run to completion as the backend utilizes a paid tier of Elastic Cloud for its AI Inference capabilities. To experience the full functionality of this project, you will need to run it locally or deploy it yourself using your own paid Elastic Cloud credentials.
