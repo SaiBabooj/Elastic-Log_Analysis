@@ -94,6 +94,23 @@ Point your browser to `http://localhost:5173`.
 3. **Deep Investigation:** Enter initial "Analyst Notes" and click **Start Deep Investigation**. Wait for the engine to yield the purple L2 Deep Analysis module.
 4. **Resolution Finalization:** Log any final steps in the notes and click **Mark as Resolved** to immediately generate the final emerald Executive Closure Report.
 
+## 📸 Screenshots
+
+**photo 1 - Frontend Illustration :**
+![Frontend Illustration](./screenshots/frontend.png)
+
+**photo 2 - Fast_Api Interface :**
+![Fast_Api Interface](./screenshots/fastapi.png)
+
+**photo 3 - Ngrok :**
+![Ngrok](./screenshots/ngrok.png)
+
+**photo 4 - logs in Json formate :**
+![Logs in JSON Format](./screenshots/logs.png)
+
+**photo 5 - Our Prediction model :**
+![Prediction Model](./screenshots/prediction.png)
+
 ## 🔐 Security Constraints Adopted
 - No destructive operations (`es.index`) exist within the API layer. Updates utilize atomic `es.update` patches to preserve audit trails.
 - All AI inferences fail gracefully and write back localized error schemas.
